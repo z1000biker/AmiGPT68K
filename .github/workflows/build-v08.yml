@@ -26,7 +26,13 @@ jobs:
             docker.io/amigadev/crosstools:m68k-amigaos \
             sh -lc 'set -e; export PATH=/opt/m68k-amigaos/bin:$PATH; make clean; make amiga-all gui-all; command -v m68k-amigaos-nm; m68k-amigaos-nm build/amiga/AmiGPTGUI040 | grep -E "(__stack|__stkinit)"'
 
-      - name: Verify HUNK binaries and v0.8 endpoint strings
+      - name: Generate Workbench icons
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/make_classic_info.py
+
+      - name: Verify HUNK binaries, endpoints and icons
         shell: bash
         run: |
           set -euo pipefail
@@ -45,9 +51,13 @@ jobs:
               for x in ['/backend-api/codex/models','/backend-api/codex/responses','originator: codex_cli_rs','ChatGPT-Account-ID']:
                   assert x not in st, (n, 'legacy string present', x)
               if n.startswith('AmiGPTGUI'):
-                  for x in ['AmiGPT68K v0.8','Model','Prompt','Send','Models','Refresh','Clear']:
+                  for x in ['AmiGPT68K v0.8','Model','Prompt','Send','Models','Refresh','Clear','Network init failed:']:
                       assert x in st, (n, 'missing GUI string', x)
-              print(n, len(d), 'HUNK verified')
+              icon=Path('icons')/(n+'.info')
+              raw=icon.read_bytes()
+              assert raw[:4] == bytes.fromhex('e3100001'), (n, 'bad icon header', raw[:4].hex())
+              assert len(raw) > 700, (n, 'icon too small', len(raw))
+              print(n, len(d), 'HUNK verified;', icon.name, len(raw), 'bytes')
           PY
 
       - name: Package binaries
@@ -55,19 +65,22 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          cp build/amiga/AmiGPT020 dist/
-          cp build/amiga/AmiGPT030FPU dist/
-          cp build/amiga/AmiGPT040 dist/
-          cp build/amiga/AmiGPTGUI020 dist/
-          cp build/amiga/AmiGPTGUI030FPU dist/
-          cp build/amiga/AmiGPTGUI040 dist/
+          for n in AmiGPT020 AmiGPT030FPU AmiGPT040 AmiGPTGUI020 AmiGPTGUI030FPU AmiGPTGUI040; do
+            cp "build/amiga/$n" dist/
+            cp "icons/$n.info" dist/
+          done
           printf '%s\n' \
             'AmiGPT68K v0.8 development cross-build' \
             'Includes CLI and native Intuition/GadTools GUI executables' \
+            'Includes classic Workbench .info icons with 128 KiB stack setting' \
+            'GUI now displays the exact bsdsocket/AmiSSL initialization error instead of a generic RETURN 20' \
             'Public SIWC data path: api.openai.com/v1/models + /v1/responses' \
             'Not runtime-validated yet; test in WinUAE before release' > dist/BUILD-VERIFIED.txt
           (cd dist && sha256sum AmiGPT020 AmiGPT030FPU AmiGPT040 AmiGPTGUI020 AmiGPTGUI030FPU AmiGPTGUI040 > SHA256SUMS.txt)
-          (cd dist && zip -9 ../AmiGPT68K-v0.8-dev-BINARIES.zip AmiGPT020 AmiGPT030FPU AmiGPT040 AmiGPTGUI020 AmiGPTGUI030FPU AmiGPTGUI040 BUILD-VERIFIED.txt SHA256SUMS.txt)
+          (cd dist && zip -9 ../AmiGPT68K-v0.8-dev-BINARIES.zip \
+            AmiGPT020 AmiGPT020.info AmiGPT030FPU AmiGPT030FPU.info AmiGPT040 AmiGPT040.info \
+            AmiGPTGUI020 AmiGPTGUI020.info AmiGPTGUI030FPU AmiGPTGUI030FPU.info AmiGPTGUI040 AmiGPTGUI040.info \
+            BUILD-VERIFIED.txt SHA256SUMS.txt)
 
       - uses: actions/upload-artifact@v4
         with:
@@ -75,10 +88,16 @@ jobs:
           path: |
             AmiGPT68K-v0.8-dev-BINARIES.zip
             dist/AmiGPT020
+            dist/AmiGPT020.info
             dist/AmiGPT030FPU
+            dist/AmiGPT030FPU.info
             dist/AmiGPT040
+            dist/AmiGPT040.info
             dist/AmiGPTGUI020
+            dist/AmiGPTGUI020.info
             dist/AmiGPTGUI030FPU
+            dist/AmiGPTGUI030FPU.info
             dist/AmiGPTGUI040
+            dist/AmiGPTGUI040.info
             dist/SHA256SUMS.txt
           if-no-files-found: error
