@@ -1,0 +1,74 @@
+name: AmiGPT 68K v0.8 Cross Build
+
+on:
+  push:
+    branches: [build-v0.8-binaries]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run portable core tests
+        run: make clean test
+
+      - name: Build AmigaOS 68K executables
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -w /src \
+            docker.io/amigadev/crosstools:m68k-amigaos \
+            sh -lc 'set -e; export PATH=/opt/m68k-amigaos/bin:$PATH; make clean; make amiga-all; command -v m68k-amigaos-nm; m68k-amigaos-nm build/amiga/AmiGPT040 | grep -E "(__stack|__stkinit)"'
+
+      - name: Verify HUNK binaries and v0.8 endpoint strings
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import struct, subprocess
+          for n in ['AmiGPT020','AmiGPT030FPU','AmiGPT040']:
+              p=Path('build/amiga')/n
+              d=p.read_bytes()
+              assert len(d) > 10000, (n, len(d))
+              assert struct.unpack('>I', d[:4])[0] == 0x3f3, (n, d[:4].hex())
+              st=subprocess.check_output(['strings', str(p)], text=True, errors='ignore')
+              for x in ['api.openai.com','/v1/models','/v1/responses','DEVICELOGIN']:
+                  assert x in st, (n, 'missing', x)
+              for x in ['/backend-api/codex/models','/backend-api/codex/responses','originator: codex_cli_rs','ChatGPT-Account-ID']:
+                  assert x not in st, (n, 'legacy string present', x)
+              print(n, len(d), 'HUNK verified')
+          PY
+
+      - name: Package binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cp build/amiga/AmiGPT020 dist/
+          cp build/amiga/AmiGPT030FPU dist/
+          cp build/amiga/AmiGPT040 dist/
+          printf '%s\n' \
+            'AmiGPT68K v0.8 development cross-build' \
+            'Public SIWC data path: api.openai.com/v1/models + /v1/responses' \
+            'Legacy DEVICELOGIN retained for diagnostics only' \
+            'Not runtime-validated yet; test in WinUAE before release' > dist/BUILD-VERIFIED.txt
+          (cd dist && sha256sum AmiGPT020 AmiGPT030FPU AmiGPT040 > SHA256SUMS.txt)
+          (cd dist && zip -9 ../AmiGPT68K-v0.8-dev-BINARIES.zip AmiGPT020 AmiGPT030FPU AmiGPT040 BUILD-VERIFIED.txt SHA256SUMS.txt)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AmiGPT68K-v0.8-dev-binaries
+          path: |
+            AmiGPT68K-v0.8-dev-BINARIES.zip
+            dist/AmiGPT020
+            dist/AmiGPT030FPU
+            dist/AmiGPT040
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
