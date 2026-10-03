@@ -4,6 +4,7 @@
 #include <exec/types.h>
 #include <exec/libraries.h>
 #include <intuition/intuition.h>
+#include <intuition/intuitionbase.h>
 #include <libraries/gadtools.h>
 #include <graphics/rastport.h>
 #include <proto/exec.h>
@@ -22,7 +23,7 @@ extern void __stkinit(void);
 void *__stkinit_ref_gui = __stkinit;
 unsigned long __stack = 131072UL;
 
-struct Library *IntuitionBase = 0;
+struct IntuitionBase *IntuitionBase = 0;
 struct Library *GadToolsBase = 0;
 struct GfxBase *GfxBase = 0;
 
@@ -93,7 +94,7 @@ static void stream_cb(const char *text,void *u)
 
 static int init_libs(void)
 {
-    IntuitionBase=OpenLibrary("intuition.library",37);
+    IntuitionBase=(struct IntuitionBase*)OpenLibrary("intuition.library",37);
     GfxBase=(struct GfxBase*)OpenLibrary("graphics.library",37);
     GadToolsBase=OpenLibrary("gadtools.library",37);
     return IntuitionBase&&GfxBase&&GadToolsBase?0:-1;
@@ -103,7 +104,7 @@ static void close_libs(void)
 {
     if(GadToolsBase)CloseLibrary(GadToolsBase);
     if((struct Library*)GfxBase)CloseLibrary((struct Library*)GfxBase);
-    if(IntuitionBase)CloseLibrary(IntuitionBase);
+    if((struct Library*)IntuitionBase)CloseLibrary((struct Library*)IntuitionBase);
 }
 
 static void do_models(void)
@@ -136,8 +137,8 @@ static void do_send(void)
     char err[512];
     struct StringInfo *si;
     const char *model,*prompt;
-    si=(struct StringInfo*)g_model_gad->SpecialInfo;model=si&&si->Buffer?si->Buffer:g_model;
-    si=(struct StringInfo*)g_prompt_gad->SpecialInfo;prompt=si&&si->Buffer?si->Buffer:g_prompt;
+    si=(struct StringInfo*)g_model_gad->SpecialInfo;model=si&&si->Buffer?(const char*)si->Buffer:g_model;
+    si=(struct StringInfo*)g_prompt_gad->SpecialInfo;prompt=si&&si->Buffer?(const char*)si->Buffer:g_prompt;
     g_text[0]=0;g_text_len=0;append_text("You: ");append_text(prompt);append_text("\n\nChatGPT: ");redraw_output();
     if(amigpt_session_load_ready(AMIGPT_DEFAULT_PROFILE,&g_profile,err,sizeof err)<0){append_text("\nERROR: ");append_text(err);redraw_output();return;}
     if(amigpt_openai_stream(g_profile.access_token,model,prompt,stream_cb,0,err,sizeof err)<0){append_text("\nERROR: ");append_text(err);redraw_output();return;}
@@ -162,14 +163,14 @@ int main(void)
     vi=GetVisualInfo(scr,TAG_DONE);if(!vi){UnlockPubScreen(0,scr);amigpt_crypto_close();close_libs();return 20;}
     gad=CreateContext(&last);
     memset(&ng,0,sizeof ng);ng.ng_VisualInfo=vi;ng.ng_TextAttr=scr->Font;ng.ng_Flags=PLACETEXT_LEFT;
-    ng.ng_LeftEdge=72;ng.ng_TopEdge=12;ng.ng_Width=360;ng.ng_Height=16;ng.ng_GadgetText="Model";ng.ng_GadgetID=GID_MODEL;
+    ng.ng_LeftEdge=72;ng.ng_TopEdge=12;ng.ng_Width=360;ng.ng_Height=16;ng.ng_GadgetText=(UBYTE*)"Model";ng.ng_GadgetID=GID_MODEL;
     g_model_gad=last=CreateGadget(STRING_KIND,last,&ng,GTST_String,(ULONG)g_model,GTST_MaxChars,127,TAG_DONE);
-    ng.ng_LeftEdge=72;ng.ng_TopEdge=36;ng.ng_Width=500;ng.ng_GadgetText="Prompt";ng.ng_GadgetID=GID_PROMPT;
+    ng.ng_LeftEdge=72;ng.ng_TopEdge=36;ng.ng_Width=500;ng.ng_GadgetText=(UBYTE*)"Prompt";ng.ng_GadgetID=GID_PROMPT;
     g_prompt_gad=last=CreateGadget(STRING_KIND,last,&ng,GTST_String,(ULONG)g_prompt,GTST_MaxChars,1023,TAG_DONE);
-    ng.ng_LeftEdge=580;ng.ng_TopEdge=34;ng.ng_Width=52;ng.ng_GadgetText="Send";ng.ng_GadgetID=GID_SEND;last=CreateGadget(BUTTON_KIND,last,&ng,TAG_DONE);
-    ng.ng_LeftEdge=12;ng.ng_TopEdge=218;ng.ng_Width=70;ng.ng_GadgetText="Models";ng.ng_GadgetID=GID_MODELS;last=CreateGadget(BUTTON_KIND,last,&ng,TAG_DONE);
-    ng.ng_LeftEdge=90;ng.ng_Width=70;ng.ng_GadgetText="Refresh";ng.ng_GadgetID=GID_REFRESH;last=CreateGadget(BUTTON_KIND,last,&ng,TAG_DONE);
-    ng.ng_LeftEdge=168;ng.ng_Width=70;ng.ng_GadgetText="Clear";ng.ng_GadgetID=GID_CLEAR;last=CreateGadget(BUTTON_KIND,last,&ng,TAG_DONE);
+    ng.ng_LeftEdge=580;ng.ng_TopEdge=34;ng.ng_Width=52;ng.ng_GadgetText=(UBYTE*)"Send";ng.ng_GadgetID=GID_SEND;last=CreateGadget(BUTTON_KIND,last,&ng,TAG_DONE);
+    ng.ng_LeftEdge=12;ng.ng_TopEdge=218;ng.ng_Width=70;ng.ng_GadgetText=(UBYTE*)"Models";ng.ng_GadgetID=GID_MODELS;last=CreateGadget(BUTTON_KIND,last,&ng,TAG_DONE);
+    ng.ng_LeftEdge=90;ng.ng_Width=70;ng.ng_GadgetText=(UBYTE*)"Refresh";ng.ng_GadgetID=GID_REFRESH;last=CreateGadget(BUTTON_KIND,last,&ng,TAG_DONE);
+    ng.ng_LeftEdge=168;ng.ng_Width=70;ng.ng_GadgetText=(UBYTE*)"Clear";ng.ng_GadgetID=GID_CLEAR;last=CreateGadget(BUTTON_KIND,last,&ng,TAG_DONE);
     g_win=OpenWindowTags(0,WA_Title,(ULONG)"AmiGPT68K v0.8",WA_Left,20,WA_Top,20,WA_Width,650,WA_Height,260,WA_MinWidth,500,WA_MinHeight,220,WA_MaxWidth,~0,WA_MaxHeight,~0,WA_DragBar,TRUE,WA_DepthGadget,TRUE,WA_CloseGadget,TRUE,WA_SizeGadget,TRUE,WA_Activate,TRUE,WA_Gadgets,(ULONG)gad,WA_IDCMP,IDCMP_CLOSEWINDOW|IDCMP_GADGETUP|IDCMP_REFRESHWINDOW,TAG_DONE);
     UnlockPubScreen(0,scr);
     if(!g_win){FreeGadgets(gad);FreeVisualInfo(vi);amigpt_crypto_close();close_libs();return 20;}
