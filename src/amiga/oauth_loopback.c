@@ -1,0 +1,16 @@
+#include "oauth_loopback.h"
+#include <exec/types.h>
+#include <exec/libraries.h>
+#include <proto/exec.h>
+#include <proto/socket.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <ctype.h>
+extern struct Library *SocketBase;
+static void seterr(char *o,size_t c,const char*s){if(o&&c)snprintf(o,c,"%s",s);}static int hexv(char c){if(c>='0'&&c<='9')return c-'0';if(c>='a'&&c<='f')return c-'a'+10;if(c>='A'&&c<='F')return c-'A'+10;return -1;}static int urldec(const char*s,size_t n,char*out,size_t cap){size_t i=0,o=0;while(i<n){char c=s[i++];if(c=='%'&&i+1<n){int a=hexv(s[i]),b=hexv(s[i+1]);if(a<0||b<0)return -1;c=(char)((a<<4)|b);i+=2;}else if(c=='+')c=' ';if(o+1>=cap)return -1;out[o++]=c;}out[o]=0;return 0;}static void qparam(const char*q,const char*key,char*out,size_t cap){size_t k=strlen(key);const char*p=q;out[0]=0;while(p&&*p){const char*amp=strchr(p,'&');size_t n=amp?(size_t)(amp-p):strlen(p);if(n>k&&!strncmp(p,key,k)&&p[k]=='='){urldec(p+k+1,n-k-1,out,cap);return;}p=amp?amp+1:0;}}
+int amigpt_loopback_open(unsigned short *port_out,char *err,size_t errcap){int s;struct sockaddr_in a;socklen_t alen=sizeof(a);memset(&a,0,sizeof a);a.sin_family=AF_INET;a.sin_addr.s_addr=htonl(0x7f000001UL);a.sin_port=0;s=socket(AF_INET,SOCK_STREAM,0);if(s<0){seterr(err,errcap,"socket failed");return -1;}if(bind(s,(struct sockaddr*)&a,sizeof a)<0||listen(s,1)<0){CloseSocket(s);seterr(err,errcap,"bind/listen failed");return -1;}if(getsockname(s,(struct sockaddr*)&a,&alen)<0){CloseSocket(s);seterr(err,errcap,"getsockname failed");return -1;}*port_out=ntohs(a.sin_port);return s;}
+int amigpt_loopback_wait(int ls,amigpt_callback *cb,unsigned long timeout,char *err,size_t errcap){fd_set r;struct timeval tv;int n,c;static char req[8192];const char *p,*q,*sp;static const char ok[]="HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nConnection: close\r\nContent-Length: 43\r\n\r\nLogin complete. You can return to AmiGPT.\n";memset(cb,0,sizeof *cb);FD_ZERO(&r);FD_SET(ls,&r);tv.tv_sec=timeout;tv.tv_usec=0;n=WaitSelect(ls+1,&r,0,0,&tv,0);if(n<=0){seterr(err,errcap,n==0?"OAuth callback timeout":"WaitSelect failed");return -1;}c=accept(ls,0,0);if(c<0){seterr(err,errcap,"accept failed");return -1;}n=recv(c,req,sizeof(req)-1,0);if(n<=0){CloseSocket(c);seterr(err,errcap,"callback read failed");return -1;}req[n]=0;p=strstr(req,"GET ");if(!p){CloseSocket(c);seterr(err,errcap,"not an HTTP GET");return -1;}p+=4;sp=strchr(p,' ');if(!sp){CloseSocket(c);seterr(err,errcap,"bad request line");return -1;}if((size_t)(sp-p)<14||strncmp(p,"/auth/callback",14)!=0||((sp-p)>14&&p[14]!='?')){CloseSocket(c);seterr(err,errcap,"wrong callback path");return -1;}q=memchr(p,'?',(size_t)(sp-p));if(q){q++;qparam(q,"code",cb->code,sizeof cb->code);qparam(q,"state",cb->state,sizeof cb->state);qparam(q,"client_id",cb->client_id,sizeof cb->client_id);qparam(q,"error",cb->error,sizeof cb->error);}send(c,(char*)ok,sizeof(ok)-1,0);CloseSocket(c);if(!cb->state[0]){seterr(err,errcap,"callback missing state");return -1;}if(!cb->code[0]&&!cb->error[0]){seterr(err,errcap,"callback missing code/error");return -1;}return 0;}
+void amigpt_loopback_close(int fd){if(fd>=0)CloseSocket(fd);}

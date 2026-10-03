@@ -1,0 +1,9 @@
+#include "models_http.h"
+#include "amiga_tls.h"
+#include "amigpt/httpdec.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+typedef struct {char *body;size_t len,cap;int oom;} collector;
+static void collect(const char*d,size_t n,void*u){collector*c=(collector*)u;char*p;if(c->oom||!n)return;if(c->len+n+1>c->cap){size_t nc=c->cap?c->cap*2:8192;while(nc<c->len+n+1)nc*=2;p=(char*)realloc(c->body,nc);if(!p){c->oom=1;return;}c->body=p;c->cap=nc;}memcpy(c->body+c->len,d,n);c->len+=n;c->body[c->len]=0;}
+int amigpt_fetch_models(const char *tok,amigpt_model_list *models,char *err,size_t errcap){amigpt_tls*t;amigpt_httpdec h;collector c;static char hdr[12288],buf[4096];int hn,n,rc;if(!tok||!*tok){snprintf(err,errcap,"missing OAuth access token");return -1;}memset(&c,0,sizeof c);amigpt_httpdec_init(&h);hn=snprintf(hdr,sizeof hdr,"GET /v1/models HTTP/1.1\r\nHost: api.openai.com\r\nAuthorization: Bearer %s\r\nUser-Agent: AmiGPT68K/0.8\r\nAccept: application/json\r\nConnection: close\r\n\r\n",tok);if(hn<0||(size_t)hn>=sizeof hdr){snprintf(err,errcap,"models headers too large");return -1;}t=amigpt_tls_connect("api.openai.com",443,err,errcap);if(!t)return -1;if(amigpt_tls_write_all(t,hdr,(size_t)hn,err,errcap)<0){amigpt_tls_close(t);return -1;}while((n=amigpt_tls_read(t,buf,sizeof buf,err,errcap))>0){rc=amigpt_httpdec_feed(&h,buf,(size_t)n,collect,&c);if(rc<0||c.oom){snprintf(err,errcap,"models response parse/memory error");free(c.body);amigpt_tls_close(t);return -1;}}amigpt_tls_close(t);if(n<0){free(c.body);return -1;}if(h.status<200||h.status>=300){snprintf(err,errcap,"models HTTP status %d: %.200s",h.status,c.body?c.body:"(empty body)");free(c.body);return -1;}rc=amigpt_models_parse(c.body?c.body:"",models);if(rc<0)snprintf(err,errcap,"cannot parse SIWC model catalog");free(c.body);return rc;}
