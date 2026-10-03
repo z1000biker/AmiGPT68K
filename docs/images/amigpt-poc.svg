@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1102" height="519" viewBox="0 0 1102 519">
+  <rect width="1102" height="519" fill="#5b8c7a"/>
+  <rect y="0" width="1102" height="32" fill="#557da2"/>
+  <text x="70" y="23" font-family="monospace" font-size="20" fill="white">Downloads   83% full, 168 GB free, 784 GB in use</text>
+  <rect x="20" y="410" width="1082" height="109" fill="#b7b57a" stroke="#111" stroke-width="2"/>
+  <text x="28" y="437" font-family="monospace" font-size="20" fill="#111">5.System:&gt; Downloads:AmiGPT040 CHAT gpt-6.1-sol "hello who are you?"</text>
+  <text x="28" y="463" font-family="monospace" font-size="20" fill="#111">Hi! I am ChatGPT, an AI assistant created by OpenAI. I can help answer questions,</text>
+  <text x="28" y="488" font-family="monospace" font-size="20" fill="#111">explain concepts, write, brainstorm, code, and more.</text>
+  <text x="28" y="513" font-family="monospace" font-size="20" fill="#111">Runtime PoC: authenticated ChatGPT response on AmigaOS / WinUAE</text>
+  <g font-family="monospace" font-size="18" fill="#111">
+    <rect x="72" y="225" width="70" height="70" fill="#d7d7c0" stroke="#234"/><text x="76" y="315">AmiGPT020</text>
+    <rect x="244" y="70" width="70" height="70" fill="#d7d7c0" stroke="#234"/><text x="200" y="155">AmiGPT030FPU</text>
+    <rect x="244" y="170" width="70" height="70" fill="#d7d7c0" stroke="#234"/><text x="220" y="265">AmiGPT040</text>
+    <rect x="72" y="78" width="70" height="70" fill="#557da2" stroke="#234"/><text x="82" y="215">AmiSSL</text>
+  </g>
+</svg>
