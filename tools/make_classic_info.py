@@ -90,15 +90,26 @@ def make_icon(title, badge, build, kind):
     p1 = pixels(title,badge)
     p2 = selected(p1)
     w,h = len(p1[0]),len(p1)
-    header = bytearray(struct.pack('>HH',WB_DISKMAGIC,WB_DISKVERSION))
-    header += struct.pack('>LhhhhHHHLLLlLHL',0,0,0,w,h,GFLG_GADGIMAGE|GADGHIMAGE,0,0,1,1,0,0,0,0,0,1)
+    header = bytearray()
+    header += struct.pack('>HH',WB_DISKMAGIC,WB_DISKVERSION)
+    header += struct.pack('>L',0)              # Gadget.NextGadget
+    header += struct.pack('>hh',0,0)           # LeftEdge, TopEdge
+    header += struct.pack('>hh',w,h)           # Width, Height
+    header += struct.pack('>HHH',GFLG_GADGIMAGE|GADGHIMAGE,0,0)
+    header += struct.pack('>L',1)              # GadgetRender present
+    header += struct.pack('>L',1)              # SelectRender present
+    header += struct.pack('>L',0)              # GadgetText
+    header += struct.pack('>l',0)              # MutualExclude
+    header += struct.pack('>L',0)              # SpecialInfo
+    header += struct.pack('>H',0)              # GadgetID
+    header += struct.pack('>L',1)              # UserData revision flag
     assert len(header) == 0x30
     header += struct.pack('>BB',WBTOOL,0)
-    header += struct.pack('>L',0) # DefaultTool: executable itself
-    header += struct.pack('>L',1) # ToolTypes present
+    header += struct.pack('>L',0)              # DefaultTool: executable itself
+    header += struct.pack('>L',1)              # ToolTypes present
     header += struct.pack('>LL',NO_ICON_POSITION,NO_ICON_POSITION)
-    header += struct.pack('>L',0) # DrawerData
-    header += struct.pack('>L',0) # ToolWindow
+    header += struct.pack('>L',0)              # DrawerData
+    header += struct.pack('>L',0)              # ToolWindow
     header += struct.pack('>l',STACK)
     assert len(header) == 78
     tt = tooltypes([f'TYPE={kind}',f'BUILD={build}',f'STACK={STACK}'])
