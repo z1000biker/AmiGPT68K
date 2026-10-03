@@ -10,8 +10,6 @@ The Amiga itself performs model discovery and inference. No proxy sits in the ch
 
 The v0.7 `AmiGPT040` build completed an authenticated ChatGPT request and streamed the answer directly in an AmigaOS Shell under WinUAE. That release remains preserved as the historical first working PoC.
 
-![AmiGPT68K runtime PoC](docs/images/amigpt-poc.svg)
-
 ## v0.8 architecture
 
 The normal v0.8 path is:
