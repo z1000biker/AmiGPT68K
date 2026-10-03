@@ -1,106 +1,128 @@
 # AmiGPT68K
 
-Native experimental ChatGPT client for classic **AmigaOS 3.x / Motorola 68K**, using `bsdsocket.library` and **AmiSSL 5** for direct HTTPS communication.
+Native experimental ChatGPT client for classic **AmigaOS 3.x / Motorola 68K** using `bsdsocket.library`, **AmiSSL 5**, and OpenAI's official open-source **Sign in with ChatGPT (SIWC)** flow.
 
-The project is designed to run on the Amiga itself: no PC/Raspberry Pi proxy and no API key in the current authenticated path.
+The Amiga itself performs model discovery and inference. No proxy sits in the chat data path and no API key is required.
 
-## Current status
+> **Status:** v0.7 is the first runtime-proven PoC. The `main` branch is now **v0.8 development**, migrating from the legacy Codex diagnostic path to the public SIWC endpoints.
 
-**v0.7 runtime-fix is the first end-to-end runtime-tested baseline.**
+## Proof of concept
 
-Tested successfully under WinUAE / AmigaOS 3.x with a 68040 configuration:
+The v0.7 `AmiGPT040` build completed an authenticated ChatGPT request and streamed the answer directly in an AmigaOS Shell under WinUAE. That release remains preserved as the historical first working PoC.
 
-- AmiSSL 5 initialization
-- DNS / TCP / TLS to OpenAI
-- device-code authentication
-- token/profile persistence
-- authenticated ChatGPT request
-- streamed response returned to the Amiga Shell
+![AmiGPT68K running on AmigaOS](docs/images/amigpt-poc.png)
 
-Example:
+## v0.8 architecture
+
+The normal v0.8 path is:
 
 ```text
-AmiGPT040 DEVICELOGIN
-AmiGPT040 CHAT gpt-6.1-sol "hello who are you?"
+Sign in with ChatGPT (OAuth 2.0 Authorization Code + PKCE)
+        -> issued oaiapp_... client ID
+        -> OAuth access/refresh tokens for https://api.openai.com/v1
+        -> GET  https://api.openai.com/v1/models
+        -> POST https://api.openai.com/v1/responses
+        -> streamed response in the Amiga Shell
 ```
 
-### Known limitations
+`originator: codex_cli_rs`, `ChatGPT-Account-ID`, and ChatGPT private `backend-api` endpoints are **not used** by the v0.8 MODELS/CHAT path.
 
-- `MODELS` currently receives HTTP 400 and still needs its request format diagnosed/fixed.
-- `CHAT` prompts containing spaces must currently be quoted. The present CLI treats a fourth argument as an optional profile path.
-- `DEVICELOGIN` is currently the working Codex device-auth path used to validate the native networking/authentication stack. The intended final login architecture is native Sign in with ChatGPT / OAuth PKCE.
-- This is an experimental client, not an official OpenAI application.
+Because classic AmigaOS currently lacks a browser capable of completing the OpenAI sign-in page, v0.8 includes a temporary PC login helper. It performs only the browser/OAuth step; the resulting protected SIWC profile is then copied to the Amiga, which owns refresh, model discovery, and inference. See [`docs/SIWC_LOGIN.md`](docs/SIWC_LOGIN.md).
+
+## Quick start
+
+On the Amiga:
+
+```text
+stack 131072
+AmiGPT040 HOSTID
+```
+
+Copy `PROGDIR:AmiGPT.profile` to a trusted PC, then from this repository run:
+
+```sh
+python tools/amigpt_login.py --profile AmiGPT.profile
+```
+
+Copy the updated profile back to the Amiga and test:
+
+```text
+AmiGPT040 REFRESH
+AmiGPT040 MODELS
+AmiGPT040 CHAT gpt-6.1-sol hello who are you?
+```
+
+The PC helper requires Python 3 plus the `cryptography` package so it can verify the OpenAI ID-token signature.
+
+## Legacy DEVICELOGIN diagnostic
+
+`DEVICELOGIN` is retained only to reproduce/test the older Codex device-auth networking path. If you use it, ChatGPT's **device code sign-in** setting must be enabled for the account/workspace. A legacy DEVICELOGIN profile is deliberately rejected by v0.8 `MODELS` and `CHAT`.
+
+It is not the intended authentication architecture of AmiGPT68K.
 
 ## Builds
 
-Three 68K targets are maintained from the same source tree:
+- `AmiGPT020` - 68020+ soft-float
+- `AmiGPT030FPU` - 68030 + FPU
+- `AmiGPT040` - 68040+
 
-- `AmiGPT020` — 68020+ soft-float
-- `AmiGPT030FPU` — 68030 + FPU
-- `AmiGPT040` — 68040+
-
-The runtime-tested configuration so far is `AmiGPT040` under WinUAE.
+The v0.7 68040 build is runtime-tested end to end under WinUAE. The 020 and 030FPU binaries have compiled successfully but still need runtime testing on matching real hardware/emulation configurations.
 
 ## Runtime requirements
 
 - AmigaOS / Workbench 3.x
-- TCP/IP stack exposing `bsdsocket.library` (WinUAE built-in bsdsocket works for testing)
+- TCP/IP stack exposing `bsdsocket.library`
 - AmiSSL 5 with a valid `AmiSSL:` assign and certificate store
 - Correct system date/time for TLS certificate validation
-- Sufficient stack; v0.7 defines the real libnix `__stack = 131072UL` and moves large buffers to static storage
+- Shell/task stack of at least ~60 KiB; use `stack 131072` during testing
+- Approximately **6.4 MB free Fast RAM** was sufficient in the tested WinUAE 68040 configuration
+- **8 MB+ Fast RAM recommended** until lower-memory testing is completed
 
-### RAM requirements
+The executable also defines libnix `__stack = 131072` and explicitly references `__stkinit` so swapstack support is linked. The runtime stack guard remains in place until this is validated across more systems.
 
-The current runtime-tested configuration completed login and a real ChatGPT request with approximately **6.4 MB of Fast RAM free** before launching AmiGPT040.
+## Security
 
-That is therefore a **known-working memory configuration**, not a claimed hard minimum. A lower minimum has not yet been measured reliably. AmiSSL, certificate handling, HTTP buffers, token/profile data and the streamed response all consume additional memory at runtime.
+`PROGDIR:AmiGPT.profile` contains plaintext OAuth access, refresh and retained ID tokens. Treat it as a password-equivalent secret. Classic AmigaOS 3.x does not provide a modern protected credential store, so do not share the profile, include it in disk images, or commit it to Git.
 
-For now:
+The repository ignores `*.profile`, `AmiGPT.profile`, and profile temp files. See [`docs/SECURITY.md`](docs/SECURITY.md).
 
-- **Known working:** about 6.4 MB free Fast RAM
-- **Recommended for comfortable use/testing:** 8 MB or more Fast RAM
-- **Absolute minimum:** not yet established
-
-The client deliberately moves large JWT/auth/HTTP buffers out of the Amiga Shell stack into static storage, and v0.7 defines a real libnix 128 KB process stack to avoid the stack corruption seen in earlier builds.
-
-## Important v0.7 runtime fixes
-
-v0.7 fixes two major 68K/AmiSSL stability problems found during testing:
-
-1. `bsdsocket.library` and AmiSSL are opened once per process instead of being repeatedly opened inside individual HTTPS operations.
-2. Large auth/profile/JWT/HTTP buffers are moved out of the small Amiga Shell stack, while the executable defines a real libnix `__stack` value.
-
-A shared `SSL_CTX` is reused during the process lifetime and TLS error reporting now includes certificate verification, `errno`, system clock year and OpenSSL error details.
-
-## Source layout
-
-```text
-include/amigpt/     portable core headers
-src/common/         portable protocol/auth/JSON/SSE code
-src/amiga/          AmigaOS networking, AmiSSL, auth and CLI
-src/amiwebauth/     browser/OAuth porting notes
-docs/               architecture and porting notes
-tests/              portable host tests
-tools/              Workbench icon generation tools
-```
-
-## Tests
-
-Portable common-core tests:
+## Build portable tests
 
 ```sh
 make test
 ```
 
-The actual Amiga executables require an `m68k-amigaos-gcc` toolchain plus AmiSSL headers/libraries.
+## Amiga build
 
-## Security
+The Amiga targets require a current `m68k-amigaos-gcc` toolchain plus AmiSSL 5 headers/libraries:
 
-- Never collect or submit the user's Google/OpenAI password inside AmiGPT.
-- Keep OAuth/token material in the local native client profile.
-- Never disable TLS hostname or certificate verification in release builds.
-- Treat the current device-auth path as experimental while the final native OAuth flow is completed.
+```sh
+make amiga020
+make amiga030fpu
+make amiga040
+# or
+make amiga-all
+```
 
-## Project state
+## Current limitations
 
-This repository starts from the first baseline that completed a real authenticated ChatGPT request from AmigaOS. Further work should preserve that known-good TLS/auth path and change one subsystem at a time.
+- v0.8 source has not yet been cross-built and runtime-tested after the public-endpoint migration.
+- First-time SIWC currently needs the PC helper; the planned native `AmiWebAuth` browser is not implemented yet.
+- OAuth tokens are stored in plaintext on AmigaOS.
+- Real-hardware 68020/68030 testing is still pending.
+
+## Release history
+
+- **v0.7** - first end-to-end runtime-proven PoC using the legacy Codex-compatible diagnostic path.
+- **v0.8 (development)** - official SIWC public endpoints, imported protected credentials, public model discovery and Responses API inference.
+
+This is an experimental open-source client and is **not an official OpenAI application**.
+
+## Protocol references
+
+AmiGPT68K v0.8 follows OpenAI's published open-source SIWC documentation:
+
+- https://developers.openai.com/siwc/token-sharing-open-source/sign-in
+- https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference
+- https://developers.openai.com/siwc/token-sharing-open-source/self-hosted-vms
+- https://developers.openai.com/siwc/token-sharing-open-source/profiles-and-sessions
