@@ -29,8 +29,11 @@ int main(void){char b[4096];amigpt_sse s;char j[128];int v;
  {amigpt_oauth_params p={"oaiapp_abc","urn:uuid:123",0,"http://127.0.0.1:1455/auth/callback","STATE","NONCE","CHALLENGE","IDTOKEN","a@b.c"};T(amigpt_oauth_authorize_url(&p,b,sizeof b)>0);T(strstr(b,"client_id=oaiapp_abc")!=0);T(strstr(b,"id_token_hint=IDTOKEN")!=0);T(strstr(b,"login_hint=a%40b.c")!=0);T(strstr(b,"agent_name_hint")==0);}
  amigpt_sse_init(&s);T(amigpt_sse_feed(&s,"event: response.output_text.delta\ndata: {\"delta\":\"Hi\"}\n\n",68,cb,0)==0);T(nevents==1);T(!strcmp(last_event,"response.output_text.delta"));
  T(amigpt_json_string("{\"access_token\":\"abc\",\"ok\":true}","access_token",j,sizeof j)==1&&!strcmp(j,"abc"));T(amigpt_json_bool("{\"ok\":true}","ok",&v)==1&&v==1);
+ T(amigpt_json_string("{\"text\":\"A\\u2014B\"}","text",j,sizeof j)==1&&!strcmp(j,"A\xE2\x80\x94""B"));
+ T(amigpt_json_string("{\"text\":\"x\\u00b2\"}","text",j,sizeof j)==1&&!strcmp(j,"x\xC2\xB2"));
  T(amigpt_responses_body("gpt-test","Hello \"Amiga\"",b,sizeof b)>0);T(strstr(b,"\"store\":false")!=0);T(strstr(b,"\"stream\":true")!=0);T(strstr(b,"\"input\":[{\"role\":\"user\"")!=0);
  T(amigpt_response_delta("{\"type\":\"response.output_text.delta\",\"delta\":\"Hello\"}",j,sizeof j)==1&&!strcmp(j,"Hello"));
+ T(amigpt_response_delta("{\"type\":\"response.output_text.delta\",\"delta\":\"A\\u2014B\"}",j,sizeof j)==1&&!strcmp(j,"A\xE2\x80\x94""B"));
  {amigpt_httpdec h;const char *a="HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nWiki\r\n5\r\npedia\r\n0\r\n\r\n";amigpt_httpdec_init(&h);http_used=0;T(amigpt_httpdec_feed(&h,a,17,hcb,0)==0);T(amigpt_httpdec_feed(&h,a+17,strlen(a)-17,hcb,0)==1);T(h.status==200);T(!strcmp(http_body,"Wikipedia"));}
  {amigpt_chat c;amigpt_chat_init(&c);T(amigpt_chat_add(&c,"user","Hello")==0);T(amigpt_chat_add(&c,"assistant","Hi")==0);T(amigpt_chat_add(&c,"user","Again")==0);T(amigpt_chat_request(&c,"gpt-test",b,sizeof b)>0);T(strstr(b,"\"role\":\"assistant\"")!=0);T(strstr(b,"\"store\":false")!=0);amigpt_chat_free(&c);}
  T(amigpt_scope_has("openid profile chatgpt.tokens.use.direct email","chatgpt.tokens.use.direct")==1);T(amigpt_scope_has("openid chatgpt.tokens.use.directX","chatgpt.tokens.use.direct")==0);
