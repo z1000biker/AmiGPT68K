@@ -18,13 +18,13 @@ jobs:
       - name: Run portable core tests
         run: make clean test
 
-      - name: Build AmigaOS 68K executables
+      - name: Build AmigaOS 68K CLI and GUI executables
         shell: bash
         run: |
           set -euo pipefail
           docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/src" -w /src \
             docker.io/amigadev/crosstools:m68k-amigaos \
-            sh -lc 'set -e; export PATH=/opt/m68k-amigaos/bin:$PATH; make clean; make amiga-all; command -v m68k-amigaos-nm; m68k-amigaos-nm build/amiga/AmiGPT040 | grep -E "(__stack|__stkinit)"'
+            sh -lc 'set -e; export PATH=/opt/m68k-amigaos/bin:$PATH; make clean; make amiga-all gui-all; command -v m68k-amigaos-nm; m68k-amigaos-nm build/amiga/AmiGPTGUI040 | grep -E "(__stack|__stkinit)"'
 
       - name: Verify HUNK binaries and v0.8 endpoint strings
         shell: bash
@@ -33,16 +33,20 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import struct, subprocess
-          for n in ['AmiGPT020','AmiGPT030FPU','AmiGPT040']:
+          names=['AmiGPT020','AmiGPT030FPU','AmiGPT040','AmiGPTGUI020','AmiGPTGUI030FPU','AmiGPTGUI040']
+          for n in names:
               p=Path('build/amiga')/n
               d=p.read_bytes()
               assert len(d) > 10000, (n, len(d))
               assert struct.unpack('>I', d[:4])[0] == 0x3f3, (n, d[:4].hex())
               st=subprocess.check_output(['strings', str(p)], text=True, errors='ignore')
-              for x in ['api.openai.com','/v1/models','/v1/responses','DEVICELOGIN']:
+              for x in ['api.openai.com','/v1/models','/v1/responses']:
                   assert x in st, (n, 'missing', x)
               for x in ['/backend-api/codex/models','/backend-api/codex/responses','originator: codex_cli_rs','ChatGPT-Account-ID']:
                   assert x not in st, (n, 'legacy string present', x)
+              if n.startswith('AmiGPTGUI'):
+                  for x in ['AmiGPT68K v0.8','Model','Prompt','Send','Models','Refresh','Clear']:
+                      assert x in st, (n, 'missing GUI string', x)
               print(n, len(d), 'HUNK verified')
           PY
 
@@ -54,13 +58,16 @@ jobs:
           cp build/amiga/AmiGPT020 dist/
           cp build/amiga/AmiGPT030FPU dist/
           cp build/amiga/AmiGPT040 dist/
+          cp build/amiga/AmiGPTGUI020 dist/
+          cp build/amiga/AmiGPTGUI030FPU dist/
+          cp build/amiga/AmiGPTGUI040 dist/
           printf '%s\n' \
             'AmiGPT68K v0.8 development cross-build' \
+            'Includes CLI and native Intuition/GadTools GUI executables' \
             'Public SIWC data path: api.openai.com/v1/models + /v1/responses' \
-            'Legacy DEVICELOGIN retained for diagnostics only' \
             'Not runtime-validated yet; test in WinUAE before release' > dist/BUILD-VERIFIED.txt
-          (cd dist && sha256sum AmiGPT020 AmiGPT030FPU AmiGPT040 > SHA256SUMS.txt)
-          (cd dist && zip -9 ../AmiGPT68K-v0.8-dev-BINARIES.zip AmiGPT020 AmiGPT030FPU AmiGPT040 BUILD-VERIFIED.txt SHA256SUMS.txt)
+          (cd dist && sha256sum AmiGPT020 AmiGPT030FPU AmiGPT040 AmiGPTGUI020 AmiGPTGUI030FPU AmiGPTGUI040 > SHA256SUMS.txt)
+          (cd dist && zip -9 ../AmiGPT68K-v0.8-dev-BINARIES.zip AmiGPT020 AmiGPT030FPU AmiGPT040 AmiGPTGUI020 AmiGPTGUI030FPU AmiGPTGUI040 BUILD-VERIFIED.txt SHA256SUMS.txt)
 
       - uses: actions/upload-artifact@v4
         with:
@@ -70,5 +77,8 @@ jobs:
             dist/AmiGPT020
             dist/AmiGPT030FPU
             dist/AmiGPT040
+            dist/AmiGPTGUI020
+            dist/AmiGPTGUI030FPU
+            dist/AmiGPTGUI040
             dist/SHA256SUMS.txt
           if-no-files-found: error
