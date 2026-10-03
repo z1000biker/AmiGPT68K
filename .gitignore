@@ -1,0 +1,13 @@
+# Build outputs
+build/
+*.o
+
+# OAuth credentials / local profiles
+*.profile
+AmiGPT.profile
+*.profile.tmp
+
+# Local diagnostics
+*.log
+__pycache__/
+*.pyc
