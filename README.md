@@ -10,7 +10,7 @@ The Amiga itself performs model discovery and inference. No proxy sits in the ch
 
 The v0.7 `AmiGPT040` build completed an authenticated ChatGPT request and streamed the answer directly in an AmigaOS Shell under WinUAE. That release remains preserved as the historical first working PoC.
 
-![AmiGPT68K running on AmigaOS](docs/images/amigpt-poc.jpg)
+![AmiGPT68K runtime PoC](docs/images/amigpt-poc.svg)
 
 ## v0.8 architecture
 
@@ -79,6 +79,12 @@ The v0.7 68040 build is runtime-tested end to end under WinUAE. The 020 and 030F
 - **8 MB+ Fast RAM recommended** until lower-memory testing is completed
 
 The executable also defines libnix `__stack = 131072` and explicitly references `__stkinit` so swapstack support is linked. The runtime stack guard remains in place until this is validated across more systems.
+
+## Native GUI direction
+
+The next user-facing milestone is a native **Intuition + GadTools** front end so AmigaOS 3.x remains dependency-light. It will reuse the same profile, OAuth refresh, `/v1/models`, `/v1/responses`, TLS and SSE core as the CLI rather than duplicating protocol code.
+
+Planned GUI targets are `AmiGPTGUI020`, `AmiGPTGUI030FPU`, and `AmiGPTGUI040`, while the CLI remains available for diagnostics and low-memory systems. See [`docs/GUI_PLAN.md`](docs/GUI_PLAN.md).
 
 ## Security
 
