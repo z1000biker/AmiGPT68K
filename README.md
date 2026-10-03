@@ -49,6 +49,20 @@ The runtime-tested configuration so far is `AmiGPT040` under WinUAE.
 - Correct system date/time for TLS certificate validation
 - Sufficient stack; v0.7 defines the real libnix `__stack = 131072UL` and moves large buffers to static storage
 
+### RAM requirements
+
+The current runtime-tested configuration completed login and a real ChatGPT request with approximately **6.4 MB of Fast RAM free** before launching AmiGPT040.
+
+That is therefore a **known-working memory configuration**, not a claimed hard minimum. A lower minimum has not yet been measured reliably. AmiSSL, certificate handling, HTTP buffers, token/profile data and the streamed response all consume additional memory at runtime.
+
+For now:
+
+- **Known working:** about 6.4 MB free Fast RAM
+- **Recommended for comfortable use/testing:** 8 MB or more Fast RAM
+- **Absolute minimum:** not yet established
+
+The client deliberately moves large JWT/auth/HTTP buffers out of the Amiga Shell stack into static storage, and v0.7 defines a real libnix 128 KB process stack to avoid the stack corruption seen in earlier builds.
+
 ## Important v0.7 runtime fixes
 
 v0.7 fixes two major 68K/AmiSSL stability problems found during testing:
